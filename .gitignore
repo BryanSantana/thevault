@@ -1,0 +1,12 @@
+# node
+node_modules/
+
+# env files
+.env
+.env.*
+
+# OS junk
+.DS_Store
+
+# logs
+npm-debug.log*
