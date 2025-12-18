@@ -1,8 +1,10 @@
+import dotenv from "dotenv";
+dotenv.config();
+
+
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
-
-dotenv.config();
+import dropsRouter from "./routes/drops.js";
 
 const app = express();
 
@@ -12,6 +14,8 @@ app.use(express.json());
 app.get("/health", (req, res) => {
   res.json({ status: "Vault backend is alive 🗄️" });
 });
+
+app.use("/drops", dropsRouter);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
