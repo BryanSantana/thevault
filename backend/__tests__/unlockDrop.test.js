@@ -1,6 +1,6 @@
 import request from "supertest";
 import bcrypt from "bcrypt";
-import { app } from "../src/server.js";
+import { app } from "../src/app.js";
 import { db } from "../src/config/db.js";
 import { resetDb } from "../src/testUtils/resetDB.js";
 
@@ -48,4 +48,8 @@ test("wrong passcode is rejected", async () => {
     .send({ passcode: "wrong" });
 
   expect(res.statusCode).toBe(403);
+});
+
+afterAll(async () => {
+  await db.end();
 });

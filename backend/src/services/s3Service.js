@@ -27,6 +27,10 @@ export async function listDropMedia(dropId) {
 }
 
 export async function getSignedMediaUrl(key) {
+  if (process.env.NODE_ENV === 'test') {
+    return `https://mock-s3/${key}`;
+  }
+
   const command = new GetObjectCommand({
     Bucket: getBucket(),
     Key: key
