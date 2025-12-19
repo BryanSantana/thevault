@@ -1,25 +1,23 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-
 import express from "express";
 import cors from "cors";
 import dropsRouter from "./routes/drops.js";
+import adminRouter from "./routes/admin.js";
+import { assertDbConnection } from "./config/db.js";
 
-const app = express();
+export const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-app.get("/health", (req, res) => {
-  res.json({ status: "Vault backend is alive 🗄️" });
-});
-
 app.use("/drops", dropsRouter);
+app.use("/admin", adminRouter);
 
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`Vault backend running on port ${PORT}`);
-});
-
-export default app;
+if (process.env.NODE_ENV !== "test") {
+  await assertDbConnection();
+  app.listen(process.env.PORT, () =>
+    console.log("Vault backend running")
+  );
+}
