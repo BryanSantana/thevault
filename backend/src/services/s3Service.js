@@ -1,6 +1,7 @@
 import {
   ListObjectsV2Command,
-  GetObjectCommand
+  GetObjectCommand,
+  PutObjectCommand
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { s3 } from "../config/s3.js";
@@ -24,6 +25,18 @@ export async function listDropMedia(dropId) {
   return response.Contents
     .filter(obj => !obj.Key.endsWith("/"))
     .map(obj => obj.Key);
+}
+
+export async function uploadMediaToS3(key, buffer, contentType) {
+  const command = new PutObjectCommand({
+    Bucket: getBucket(),
+    Key: key,
+    Body: buffer,
+    ContentType: contentType
+  });
+
+  await s3.send(command);
+  return key;
 }
 
 export async function getSignedMediaUrl(key) {
