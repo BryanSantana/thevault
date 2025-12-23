@@ -2,11 +2,22 @@ import express from "express";
 import bcrypt from "bcrypt";
 import multer from "multer";
 import { db } from "../config/db.js";
-import { getSignedMediaUrl, listDropMedia, uploadMediaToS3 } from "../services/s3Service.js";
+import { getSignedMediaUrl, listDropMedia } from "../services/s3Service.js";
 import { validateDropPasscode } from "../services/dropService.js";
-import { getMediaForDrop, createMedia, getNextPosition } from "../repositories/mediaRepo.js";
-import { createDrop, findDropByDropId } from "../repositories/dropRepo.js";
+import { getMediaForDrop } from "../repositories/mediaRepo.js";
+import { findDropByDropId, createDrop } from "../repositories/dropRepo.js";
+import { createAndUploadMedia } from "../services/mediaService.js";
 const router = express.Router();
+
+// Generate a unique drop ID (6 characters, alphanumeric)
+function generateDropId() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
 
 /**
  * GET /drops
@@ -16,7 +27,7 @@ router.get("/", async (req, res) => {
   try {
     // For now, assume no user, list all
     const result = await db.query(`
-      SELECT id, drop_id, title, created_at
+      SELECT id, drop_id, title, created_at, is_public
       FROM drops
       ORDER BY created_at DESC
     `);
@@ -33,15 +44,31 @@ router.get("/", async (req, res) => {
  */
 router.post("/", async (req, res) => {
   try {
-    const { dropId, title, passcode } = req.body;
+    const { title, passcode, isPublic } = req.body;
 
-    if (!dropId || !title || !passcode) {
-      return res.status(400).json({ error: "MISSING_REQUIRED_FIELDS" });
+    if (!title) {
+      return res.status(400).json({ error: "TITLE_REQUIRED" });
     }
 
-    const passcodeHash = await bcrypt.hash(passcode, 10);
+    // For private drops, require passcode
+    if (!isPublic && !passcode) {
+      return res.status(400).json({ error: "PASSCODE_REQUIRED_FOR_PRIVATE_DROP" });
+    }
 
-    const drop = await createDrop(dropId, title, passcodeHash);
+    // Generate unique dropId
+    let dropId;
+    let attempts = 0;
+    do {
+      dropId = generateDropId();
+      attempts++;
+      if (attempts > 10) {
+        return res.status(500).json({ error: "FAILED_TO_GENERATE_UNIQUE_ID" });
+      }
+    } while (await findDropByDropId(dropId));
+
+    const passcodeHash = isPublic ? null : await bcrypt.hash(passcode, 10);
+
+    const drop = await createDrop(dropId, title, passcodeHash, isPublic);
 
     res.status(201).json({
       id: drop.id,
@@ -73,24 +100,7 @@ router.post("/:dropId/media", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "NO_FILE_UPLOADED" });
     }
 
-    const drop = await findDropByDropId(dropId);
-    if (!drop) {
-      return res.status(404).json({ error: "DROP_NOT_FOUND" });
-    }
-
-    // Determine media type
-    const mediaType = file.mimetype.startsWith("video/") ? "video" : "photo";
-
-    // Generate S3 key
-    const position = await getNextPosition(drop.id);
-    const extension = file.originalname.split(".").pop();
-    const s3Key = `drops/${dropId}/${mediaType}s/${position}.${extension}`;
-
-    // Upload to S3
-    await uploadMediaToS3(s3Key, file.buffer, file.mimetype);
-
-    // Save to DB
-    const media = await createMedia(drop.id, s3Key, mediaType, position);
+    const media = await createAndUploadMedia(dropId, file);
 
     res.status(201).json({
       id: media.id,
@@ -100,6 +110,9 @@ router.post("/:dropId/media", upload.single("file"), async (req, res) => {
     });
   } catch (err) {
     console.error(err);
+    if (err.message === "DROP_NOT_FOUND") {
+      return res.status(404).json({ error: "DROP_NOT_FOUND" });
+    }
     res.status(500).json({ error: "FAILED_TO_UPLOAD_MEDIA" });
   }
 });
