@@ -39,10 +39,6 @@ const Home: React.FC = () => {
               </div>
               <Folder size={48} className="folder-icon" />
               <h3>{drop.title}</h3>
-              <div className="drop-code">
-                <span className="code-label">Code:</span>
-                <span className="code-value">{drop.dropId}</span>
-              </div>
             </div>
           </Link>
         ))}

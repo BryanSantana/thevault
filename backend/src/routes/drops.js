@@ -27,7 +27,7 @@ router.get("/", async (req, res) => {
   try {
     // For now, assume no user, list all
     const result = await db.query(`
-      SELECT id, drop_id, title, created_at, is_public
+      SELECT id, drop_id as "dropId", title, created_at as "createdAt", is_public as "isPublic"
       FROM drops
       ORDER BY created_at DESC
     `);
