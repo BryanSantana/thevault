@@ -34,7 +34,7 @@ const CreateDrop: React.FC = () => {
     );
 
     if (validFiles.length !== droppedFiles.length) {
-      alert('Only image and video files are allowed');
+      alert('only image and video files are allowed');
     }
 
     setFiles(prev => [...prev, ...validFiles]);
@@ -68,12 +68,12 @@ const CreateDrop: React.FC = () => {
     e.preventDefault();
 
     if (!title) {
-      alert('Please enter a title for your drop');
+      alert('please enter a title for your drop');
       return;
     }
 
     if (!isPublic && !passcode) {
-      alert('Private drops require a passcode');
+      alert('private drops require a passcode');
       return;
     }
 
@@ -99,7 +99,7 @@ const CreateDrop: React.FC = () => {
       navigate('/');
     } catch (error) {
       console.error('Error creating drop:', error);
-      alert('Failed to create drop');
+      alert('failed to create drop');
     } finally {
       setIsUploading(false);
     }
@@ -107,12 +107,12 @@ const CreateDrop: React.FC = () => {
 
   return (
     <div className="create-drop">
-      <h2>Create New Drop</h2>
+      <h2>create new drop</h2>
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <input
             type="text"
-            placeholder="Drop Title (e.g., Summer Vacation Photos)"
+            placeholder="drop title (e.g., summer vacation photos)"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             required
@@ -132,12 +132,12 @@ const CreateDrop: React.FC = () => {
                 {isPublic ? (
                   <>
                     <Unlock size={16} />
-                    Public Drop
+                    public drop
                   </>
                 ) : (
                   <>
                     <Lock size={16} />
-                    Private Drop
+                    private drop
                   </>
                 )}
               </span>
@@ -149,7 +149,7 @@ const CreateDrop: React.FC = () => {
           <div className="form-group">
             <input
               type="password"
-              placeholder="Passcode (required for private drops)"
+              placeholder="passcode (required for private drops)"
               value={passcode}
               onChange={(e) => setPasscode(e.target.value)}
               required={!isPublic}
@@ -166,8 +166,8 @@ const CreateDrop: React.FC = () => {
             onClick={() => fileInputRef.current?.click()}
           >
             <Upload size={48} className="upload-icon" />
-            <p>Drag & drop images/videos here, or click to browse</p>
-            <p className="file-types">Supported: JPG, PNG, MP4, MOV</p>
+            <p>drag & drop images/videos here, or click to browse</p>
+            <p className="file-types">supported: jpg, png, mp4, mov</p>
             <input
               ref={fileInputRef}
               type="file"
@@ -181,7 +181,7 @@ const CreateDrop: React.FC = () => {
 
         {files.length > 0 && (
           <div className="file-list">
-            <h3>Files to Upload ({files.length})</h3>
+            <h3>files to upload ({files.length})</h3>
             {files.map((file, index) => (
               <div key={index} className="file-item">
                 <div className="file-info">
@@ -205,7 +205,7 @@ const CreateDrop: React.FC = () => {
           className="button create-button"
           disabled={isUploading}
         >
-          {isUploading ? 'Creating Drop...' : 'Create Drop'}
+          {isUploading ? 'creating drop...' : 'create drop'}
         </button>
       </form>
     </div>

@@ -9,6 +9,7 @@ interface Drop {
   title: string;
   createdAt: string;
   isPublic: boolean;
+  isOwner: boolean;
 }
 
 const Home: React.FC = () => {
@@ -22,9 +23,8 @@ const Home: React.FC = () => {
 
   return (
     <div className="home">
-      <div className="header-bar">
-        <h1 className="vault-title">The Vault</h1>
-        <Link to="/create" className="button create-button">Create New Drop</Link>
+      <div className="home-actions">
+        <Link to="/create" className="button create-button cta">create new drop</Link>
       </div>
       <div className="drops-grid">
         {drops.map(drop => (
@@ -36,13 +36,26 @@ const Home: React.FC = () => {
                 ) : (
                   <Lock size={16} className="visibility-icon private" />
                 )}
+                {drop.isOwner && (
+                  <span className="owner-badge">mine</span>
+                )}
               </div>
-              <Folder size={48} className="folder-icon" />
-              <h3>{drop.title}</h3>
+              <div className="folder-body">
+                <Folder size={48} className="folder-icon" />
+                <div>
+                  <h3>{drop.title}</h3>
+                  <div className="meta">{new Date(drop.createdAt).toLocaleDateString()}</div>
+                </div>
+              </div>
             </div>
           </Link>
         ))}
       </div>
+      {drops.length === 0 && (
+        <div className="empty-state">
+          <p>no drops yet. create your first memory.</p>
+        </div>
+      )}
     </div>
   );
 };

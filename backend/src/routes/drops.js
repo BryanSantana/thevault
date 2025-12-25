@@ -5,8 +5,9 @@ import { db } from "../config/db.js";
 import { getSignedMediaUrl, listDropMedia } from "../services/s3Service.js";
 import { validateDropPasscode } from "../services/dropService.js";
 import { getMediaForDrop } from "../repositories/mediaRepo.js";
-import { findDropByDropId, createDrop } from "../repositories/dropRepo.js";
+import { findDropByDropId, createDrop, incrementUnlockCount } from "../repositories/dropRepo.js";
 import { createAndUploadMedia } from "../services/mediaService.js";
+import { authenticateToken, optionalAuth } from "../middleware/auth.js";
 const router = express.Router();
 
 // Generate a unique drop ID (6 characters, alphanumeric)
@@ -21,16 +22,35 @@ function generateDropId() {
 
 /**
  * GET /drops
- * List all drops (for personal vault)
+ * List all drops (user's drops + public drops)
  */
-router.get("/", async (req, res) => {
+router.get("/", optionalAuth, async (req, res) => {
   try {
-    // For now, assume no user, list all
-    const result = await db.query(`
-      SELECT id, drop_id as "dropId", title, created_at as "createdAt", is_public as "isPublic"
-      FROM drops
-      ORDER BY created_at DESC
-    `);
+    let query;
+    let params;
+
+    if (req.user) {
+      // Authenticated user: show their drops + all public drops
+      query = `
+        SELECT id, drop_id as "dropId", title, created_at as "createdAt", is_public as "isPublic",
+               CASE WHEN user_id = $1 THEN true ELSE false END as "isOwner"
+        FROM drops
+        WHERE user_id = $1 OR is_public = true
+        ORDER BY created_at DESC
+      `;
+      params = [req.user.id];
+    } else {
+      // Guest user: show only public drops
+      query = `
+        SELECT id, drop_id as "dropId", title, created_at as "createdAt", is_public as "isPublic", false as "isOwner"
+        FROM drops
+        WHERE is_public = true
+        ORDER BY created_at DESC
+      `;
+      params = [];
+    }
+
+    const result = await db.query(query, params);
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -42,9 +62,10 @@ router.get("/", async (req, res) => {
  * POST /drops
  * Create a new drop
  */
-router.post("/", async (req, res) => {
+router.post("/", authenticateToken, async (req, res) => {
   try {
     const { title, passcode, isPublic } = req.body;
+    const userId = req.user.id;
 
     if (!title) {
       return res.status(400).json({ error: "TITLE_REQUIRED" });
@@ -67,14 +88,17 @@ router.post("/", async (req, res) => {
     } while (await findDropByDropId(dropId));
 
     const passcodeHash = isPublic ? null : await bcrypt.hash(passcode, 10);
+    const passcodePlain = isPublic ? null : passcode;
 
-    const drop = await createDrop(dropId, title, passcodeHash, isPublic);
+    const drop = await createDrop(dropId, title, passcodeHash, isPublic, userId, passcodePlain);
 
     res.status(201).json({
       id: drop.id,
       dropId: drop.drop_id,
       title: drop.title,
-      createdAt: drop.created_at
+      createdAt: drop.created_at,
+      isPublic: drop.is_public,
+      isOwner: true
     });
   } catch (err) {
     console.error(err);
@@ -91,7 +115,7 @@ const upload = multer({ storage: multer.memoryStorage() });
  * POST /drops/:dropId/media
  * Upload media to a drop
  */
-router.post("/:dropId/media", upload.single("file"), async (req, res) => {
+router.post("/:dropId/media", authenticateToken, upload.single("file"), async (req, res) => {
   try {
     const { dropId } = req.params;
     const file = req.file;
@@ -121,7 +145,7 @@ router.post("/:dropId/media", upload.single("file"), async (req, res) => {
  * GET /drops/:dropId
  * Returns info about a drop (for now, public info)
  */
-router.get("/:dropId", async (req, res) => {
+router.get("/:dropId", optionalAuth, async (req, res) => {
   try {
     const { dropId } = req.params;
 
@@ -135,7 +159,9 @@ router.get("/:dropId", async (req, res) => {
       dropId: drop.drop_id,
       title: drop.title,
       isLive: drop.is_live,
-      createdAt: drop.created_at
+      createdAt: drop.created_at,
+      isPublic: drop.is_public,
+      isOwner: req.user ? drop.user_id === req.user.id : false
     });
   } catch (err) {
     console.error(err);
@@ -144,21 +170,29 @@ router.get("/:dropId", async (req, res) => {
 });
 
 
-router.post("/:dropId/unlock", async (req, res) => {
+router.post("/:dropId/unlock", optionalAuth, async (req, res) => {
   try {
     const { dropId } = req.params;
     const { passcode } = req.body;
 
-    if (!passcode) {
-      return res.status(400).json({ error: "PASSCODE_REQUIRED" });
+    const drop = await findDropByDropId(dropId);
+    if (!drop) {
+      return res.status(404).json({ error: "DROP_NOT_FOUND" });
     }
 
-    const validation = await validateDropPasscode(dropId, passcode);
-    if (!validation.valid) {
-      return res.status(403).json({ error: validation.reason });
+    const isOwner = req.user && drop.user_id === req.user.id;
+
+    if (!drop.is_public && !isOwner) {
+      if (!passcode) {
+        return res.status(400).json({ error: "PASSCODE_REQUIRED" });
+      }
+
+      const validation = await validateDropPasscode(dropId, passcode);
+      if (!validation.valid) {
+        return res.status(403).json({ error: validation.reason });
+      }
     }
 
-    const drop = validation.drop;
     const mediaRows = await getMediaForDrop(drop.id);
 
     const media = await Promise.all(
@@ -171,11 +205,15 @@ router.post("/:dropId/unlock", async (req, res) => {
       }))
     );
 
+    const unlockCount = await incrementUnlockCount(dropId);
+
     res.json({
       dropId,
       title: drop.title,
       count: media.length,
       media,
+      unlockCount,
+      passcode: isOwner ? drop.passcode_plain : undefined,
     });
   } catch (err) {
     console.error(err);

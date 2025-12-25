@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ChevronLeft, ChevronRight, X, ArrowLeft } from 'lucide-react';
 import axios from 'axios';
 
 interface Media {
@@ -12,11 +12,14 @@ interface Media {
 
 const DropDetail: React.FC = () => {
   const { dropId } = useParams<{ dropId: string }>();
+  const navigate = useNavigate();
   const [passcode, setPasscode] = useState('');
   const [media, setMedia] = useState<Media[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [unlocked, setUnlocked] = useState(false);
-  const [dropInfo, setDropInfo] = useState<{ title: string; isLive: boolean } | null>(null);
+  const [unlockCount, setUnlockCount] = useState<number | null>(null);
+  const [ownerPasscode, setOwnerPasscode] = useState<string | null>(null);
+  const [dropInfo, setDropInfo] = useState<{ title: string; isLive: boolean; isPublic?: boolean; isOwner?: boolean } | null>(null);
   const [selectedMediaIndex, setSelectedMediaIndex] = useState<number | null>(null);
 
   useEffect(() => {
@@ -25,6 +28,13 @@ const DropDetail: React.FC = () => {
       .then(response => setDropInfo(response.data))
       .catch(error => console.error('Error fetching drop info:', error));
   }, [dropId]);
+
+  useEffect(() => {
+    if (dropInfo?.isOwner && !unlocked) {
+      handleUnlock();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dropInfo]);
 
   useEffect(() => {
     // Keyboard navigation
@@ -58,8 +68,14 @@ const DropDetail: React.FC = () => {
       const response = await axios.post(`http://localhost:4000/drops/${dropId}/unlock`, { passcode });
       setMedia(response.data.media);
       setUnlocked(true);
+      if (typeof response.data.unlockCount === 'number') {
+        setUnlockCount(response.data.unlockCount);
+      }
+      if (response.data.passcode) {
+        setOwnerPasscode(response.data.passcode);
+      }
     } catch (error) {
-      alert('Invalid passcode');
+      alert('invalid passcode');
     }
   };
 
@@ -71,7 +87,7 @@ const DropDetail: React.FC = () => {
       await axios.post(`http://localhost:4000/drops/${dropId}/media`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      alert('Media uploaded');
+      alert('media uploaded');
       setFile(null);
       // Refresh media
       if (unlocked) {
@@ -79,7 +95,7 @@ const DropDetail: React.FC = () => {
         setMedia(response.data.media);
       }
     } catch (error) {
-      alert('Upload failed');
+      alert('upload failed');
     }
   };
 
@@ -102,17 +118,27 @@ const DropDetail: React.FC = () => {
   return (
     <div className="drop-detail">
       <div className="drop-header">
-        <h2>{dropInfo?.title || 'Loading...'}</h2>
+        <button className="button back-button" onClick={() => navigate(-1)}>
+          <ArrowLeft size={16} />
+          back
+        </button>
+        <h2>{dropInfo?.title || 'loading...'}</h2>
+        {unlocked && (
+          <div className="drop-meta">
+            {typeof unlockCount === 'number' && <span className="badge">unlocks: {unlockCount}</span>}
+            {ownerPasscode && <span className="badge">passcode: {ownerPasscode}</span>}
+          </div>
+        )}
       </div>
       {!unlocked ? (
         <div className="unlock-section">
           <input
             type="password"
-            placeholder="Enter passcode"
+            placeholder="enter passcode"
             value={passcode}
             onChange={(e) => setPasscode(e.target.value)}
           />
-          <button onClick={handleUnlock} className="button">Unlock</button>
+          <button onClick={handleUnlock} className="button">unlock</button>
         </div>
       ) : (
         <div className="media-section">
@@ -130,7 +156,7 @@ const DropDetail: React.FC = () => {
 
           <div className="upload">
             <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-            <button onClick={handleUpload} className="button">Upload</button>
+            <button onClick={handleUpload} className="button">upload</button>
           </div>
         </div>
       )}
