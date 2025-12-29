@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import axios from 'axios';
 import Home from './components/Home';
 import CreateDrop from './components/CreateDrop';
 import DropDetail from './components/DropDetail';
 import Login from './components/Login';
 import Signup from './components/Signup';
+import Profile from './components/Profile';
 import './App.css';
 
 interface User {
   id: number;
   phoneNumber: string;
   name?: string;
+  username?: string;
   profilePictureUrl?: string;
 }
 
@@ -63,41 +65,27 @@ function App() {
     return <div className="app">loading...</div>;
   }
 
-  if (!user) {
-    return (
-      <div className="app">
-        <header className="header">
-          <h1>the vault</h1>
-          <p>sony handycam memories</p>
-        </header>
-        <main>
-          {authMode === 'login' ? (
-            <Login
-              onLogin={handleLogin}
-              onSwitchToSignup={() => setAuthMode('signup')}
-            />
-          ) : (
-            <Signup
-              onSignup={handleSignup}
-              onSwitchToLogin={() => setAuthMode('login')}
-            />
-          )}
-        </main>
-      </div>
-    );
-  }
-
   return (
     <Router>
       <div className="app">
         <header className="header-bar full-width">
           <h1 className="vault-title">the vault</h1>
-          <div className="user-info">
-            {user.profilePictureUrl && (
+            <div className="user-info">
+            {user?.profilePictureUrl && (
               <img src={user.profilePictureUrl} alt="Profile" className="profile-pic" />
             )}
-            <span>welcome, {user.name || user.phoneNumber}</span>
-            <button onClick={handleLogout} className="button logout-button">logout</button>
+            {user ? (
+              <>
+                <span>welcome, {user.username || user.name || user.phoneNumber}</span>
+                <Link to={`/profile/${user.id}`} className="button logout-button">profile</Link>
+                <button onClick={handleLogout} className="button logout-button">logout</button>
+              </>
+            ) : (
+              <div className="auth-actions">
+                <button onClick={() => setAuthMode('login')} className="button logout-button">login</button>
+                <button onClick={() => setAuthMode('signup')} className="button logout-button">sign up</button>
+              </div>
+            )}
           </div>
         </header>
         <main className="main-full">
@@ -105,6 +93,8 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/create" element={<CreateDrop />} />
             <Route path="/drop/:dropId" element={<DropDetail />} />
+            <Route path="/profile/:id" element={<Profile />} />
+            <Route path="/profiles/:id" element={<Profile />} />
             <Route path="*" element={<Home />} />
           </Routes>
         </main>

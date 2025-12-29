@@ -4,7 +4,7 @@ import multer from "multer";
 import { db } from "../config/db.js";
 import { getSignedMediaUrl, listDropMedia } from "../services/s3Service.js";
 import { validateDropPasscode } from "../services/dropService.js";
-import { getMediaForDrop } from "../repositories/mediaRepo.js";
+import { getMediaForDrop, findMediaById } from "../repositories/mediaRepo.js";
 import { findDropByDropId, createDrop, incrementUnlockCount } from "../repositories/dropRepo.js";
 import { createAndUploadMedia } from "../services/mediaService.js";
 import { authenticateToken, optionalAuth } from "../middleware/auth.js";
@@ -212,12 +212,48 @@ router.post("/:dropId/unlock", optionalAuth, async (req, res) => {
       title: drop.title,
       count: media.length,
       media,
-      unlockCount,
+      unlockCount: isOwner ? unlockCount : undefined,
       passcode: isOwner ? drop.passcode_plain : undefined,
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "FAILED_TO_UNLOCK_DROP" });
+  }
+});
+
+// download proxy to avoid exposing raw S3 and handle CORS
+router.get("/:dropId/media/:mediaId/download", optionalAuth, async (req, res) => {
+  try {
+    const { dropId, mediaId } = req.params;
+    const { passcode } = req.query;
+
+    const drop = await findDropByDropId(dropId);
+    if (!drop) {
+      return res.status(404).json({ error: "DROP_NOT_FOUND" });
+    }
+
+    const media = await findMediaById(mediaId);
+    if (!media || media.drop_id !== drop.id) {
+      return res.status(404).json({ error: "MEDIA_NOT_FOUND" });
+    }
+
+    const isOwner = req.user && req.user.id === drop.user_id;
+
+    if (!drop.is_public && !isOwner) {
+      if (!passcode) {
+        return res.status(400).json({ error: "PASSCODE_REQUIRED" });
+      }
+      const validation = await validateDropPasscode(dropId, passcode);
+      if (!validation.valid) {
+        return res.status(403).json({ error: validation.reason });
+      }
+    }
+
+    const signed = await getSignedMediaUrl(media.s3_key);
+    return res.redirect(signed);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "FAILED_TO_DOWNLOAD_MEDIA" });
   }
 });
 

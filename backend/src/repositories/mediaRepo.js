@@ -36,3 +36,15 @@ export async function getNextPosition(dropUuid) {
   );
   return result.rows[0].next_pos;
 }
+
+export async function findMediaById(mediaId) {
+  const result = await db.query(
+    `
+    SELECT id, drop_id, s3_key, media_type, position
+    FROM media
+    WHERE id = $1
+    `,
+    [mediaId]
+  );
+  return result.rows[0] ?? null;
+}

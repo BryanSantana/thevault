@@ -10,6 +10,7 @@ const Signup: React.FC<SignupProps> = ({ onSignup, onSwitchToLogin }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -22,7 +23,8 @@ const Signup: React.FC<SignupProps> = ({ onSignup, onSwitchToLogin }) => {
       const response = await axios.post('http://localhost:4000/users/signup', {
         phoneNumber,
         password,
-        name: name.trim() || null
+        name: name.trim() || null,
+        username: username.trim(),
       });
 
       onSignup(response.data.user, response.data.token);
@@ -55,6 +57,15 @@ const Signup: React.FC<SignupProps> = ({ onSignup, onSwitchToLogin }) => {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
+            />
+          </div>
+          <div className="form-group">
+            <input
+              type="text"
+              placeholder="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
             />
           </div>
           <div className="form-group">

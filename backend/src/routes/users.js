@@ -1,47 +1,57 @@
 import express from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import multer from 'multer';
 import { db as pool } from '../config/db.js';
-import { authenticateToken, JWT_SECRET } from '../middleware/auth.js';
+import { authenticateToken, optionalAuth, JWT_SECRET } from '../middleware/auth.js';
 import { uploadMediaToS3 } from '../services/s3Service.js';
+import { findUserById, findUserWithDrops } from '../repositories/userRepo.js';
 
 const router = express.Router();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB max
+});
 
 // Signup with phone number
 router.post('/signup', async (req, res) => {
   try {
-    const { phoneNumber, password, name } = req.body;
+    const { phoneNumber, password, name, username, profilePictureUrl } = req.body;
 
-    if (!phoneNumber || !password) {
-      return res.status(400).json({ error: 'Phone number and password are required' });
+    if (!phoneNumber || !password || !username) {
+      return res.status(400).json({ error: 'phone number, username, and password are required' });
     }
 
-    // Check if user already exists
     const existingUser = await pool.query('SELECT id FROM users WHERE phone_number = $1', [phoneNumber]);
     if (existingUser.rows.length > 0) {
-      return res.status(409).json({ error: 'Phone number already registered' });
+      return res.status(409).json({ error: 'phone number already registered' });
     }
 
-    // Hash password
+    const existingUsername = await pool.query('SELECT id FROM users WHERE username = $1', [username]);
+    if (existingUsername.rows.length > 0) {
+      return res.status(409).json({ error: 'username already taken' });
+    }
+
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    // Create user
     const result = await pool.query(
-      'INSERT INTO users (phone_number, password_hash, name) VALUES ($1, $2, $3) RETURNING id, phone_number, name',
-      [phoneNumber, passwordHash, name || null]
+      `INSERT INTO users (phone_number, password_hash, name, username, profile_picture_url)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, phone_number, name, username, profile_picture_url`,
+      [phoneNumber, passwordHash, name || null, username, profilePictureUrl || null]
     );
 
     const user = result.rows[0];
-
-    // Generate JWT token
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
 
     res.status(201).json({
       user: {
         id: user.id,
         phoneNumber: user.phone_number,
-        name: user.name
+        name: user.name,
+        username: user.username,
+        profilePictureUrl: user.profile_picture_url
       },
       token
     });
@@ -82,6 +92,7 @@ router.post('/login', async (req, res) => {
         id: user.id,
         phoneNumber: user.phone_number,
         name: user.name,
+        username: user.username,
         profilePictureUrl: user.profile_picture_url
       },
       token
@@ -100,6 +111,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
         id: req.user.id,
         phoneNumber: req.user.phone_number,
         name: req.user.name,
+        username: req.user.username,
         profilePictureUrl: req.user.profile_picture_url
       }
     });
@@ -112,12 +124,19 @@ router.get('/profile', authenticateToken, async (req, res) => {
 // Update user profile
 router.put('/profile', authenticateToken, async (req, res) => {
   try {
-    const { name, profilePictureUrl } = req.body;
+    const { name, profilePictureUrl, username } = req.body;
     const userId = req.user.id;
 
+    if (username) {
+      const existingUsername = await pool.query('SELECT id FROM users WHERE username = $1 AND id <> $2', [username, userId]);
+      if (existingUsername.rows.length > 0) {
+        return res.status(409).json({ error: 'username already taken' });
+      }
+    }
+
     const result = await pool.query(
-      'UPDATE users SET name = $1, profile_picture_url = $2 WHERE id = $3 RETURNING id, phone_number, name, profile_picture_url',
-      [name, profilePictureUrl, userId]
+      'UPDATE users SET name = $1, profile_picture_url = $2, username = COALESCE($3, username) WHERE id = $4 RETURNING id, phone_number, name, username, profile_picture_url',
+      [name, profilePictureUrl, username, userId]
     );
 
     if (result.rows.length === 0) {
@@ -130,6 +149,7 @@ router.put('/profile', authenticateToken, async (req, res) => {
         id: user.id,
         phoneNumber: user.phone_number,
         name: user.name,
+        username: user.username,
         profilePictureUrl: user.profile_picture_url
       }
     });
@@ -139,29 +159,69 @@ router.put('/profile', authenticateToken, async (req, res) => {
   }
 });
 
-// Upload profile picture
-router.post('/profile-picture', authenticateToken, async (req, res) => {
+// Upload profile picture via multipart (profilePicture field)
+router.post('/profile-picture', authenticateToken, upload.single('profilePicture'), async (req, res) => {
   try {
-    if (!req.files || !req.files.profilePicture) {
-      return res.status(400).json({ error: 'Profile picture is required' });
+    if (!req.file) {
+      return res.status(400).json({ error: 'profile picture is required' });
     }
 
-    const file = req.files.profilePicture;
+    const file = req.file;
     const userId = req.user.id;
 
-    // Upload to S3
-    const s3Key = `profile-pictures/${userId}/${Date.now()}-${file.name}`;
-    await uploadMediaToS3(s3Key, file.data, file.mimetype);
+    if (!file.mimetype.startsWith('image/')) {
+      return res.status(400).json({ error: 'only image uploads are allowed' });
+    }
 
-    // Update user profile
+    const key = `profile-pictures/${userId}/${Date.now()}-${file.originalname}`;
+    const storedKey = await uploadMediaToS3(key, file.buffer, file.mimetype);
+
+    const region = process.env.AWS_REGION;
+    const bucket = process.env.S3_BUCKET;
+    const baseUrl = process.env.MEDIA_BASE_URL || (bucket && region
+      ? `https://${bucket}.s3.${region}.amazonaws.com`
+      : `https://s3.${region}.amazonaws.com/${bucket}`);
+    const imageUrl = `${baseUrl}/${storedKey}`;
+
     const result = await pool.query(
       'UPDATE users SET profile_picture_url = $1 WHERE id = $2 RETURNING profile_picture_url',
-      [uploadResult.Location, userId]
+      [imageUrl, userId]
     );
 
     res.json({ profilePictureUrl: result.rows[0].profile_picture_url });
   } catch (error) {
     console.error('Profile picture upload error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Public profile by id (with drops)
+router.get('/profile/:id', optionalAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = await findUserWithDrops(id);
+    if (!data) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const isOwner = req.user ? req.user.id === Number(id) : false;
+
+    res.json({
+      user: {
+        id: data.user.id,
+        phoneNumber: isOwner ? data.user.phone_number : undefined,
+        name: data.user.name,
+        username: data.user.username,
+        profilePictureUrl: data.user.profile_picture_url,
+        isOwner
+      },
+      drops: data.drops.map(d => ({
+        ...d,
+        isOwner
+      }))
+    });
+  } catch (error) {
+    console.error('Public profile error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

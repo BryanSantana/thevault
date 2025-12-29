@@ -68,7 +68,7 @@ const DropDetail: React.FC = () => {
       const response = await axios.post(`http://localhost:4000/drops/${dropId}/unlock`, { passcode });
       setMedia(response.data.media);
       setUnlocked(true);
-      if (typeof response.data.unlockCount === 'number') {
+      if (typeof response.data.unlockCount === 'number' && dropInfo?.isOwner) {
         setUnlockCount(response.data.unlockCount);
       }
       if (response.data.passcode) {
@@ -107,6 +107,16 @@ const DropDetail: React.FC = () => {
     setSelectedMediaIndex(null);
   };
 
+  const handleDownload = async () => {
+    if (selectedMediaIndex === null) return;
+    const current = media[selectedMediaIndex];
+    if (!current) return;
+
+    const passcodeParam = dropInfo?.isOwner || dropInfo?.isPublic ? '' : passcode ? `?passcode=${encodeURIComponent(passcode)}` : '';
+    const downloadUrl = `http://localhost:4000/drops/${dropId}/media/${current.id}/download${passcodeParam}`;
+    window.location.href = downloadUrl;
+  };
+
   const navigateMedia = (direction: number) => {
     if (selectedMediaIndex === null) return;
     const newIndex = selectedMediaIndex + direction;
@@ -123,7 +133,7 @@ const DropDetail: React.FC = () => {
           back
         </button>
         <h2>{dropInfo?.title || 'loading...'}</h2>
-        {unlocked && (
+        {unlocked && dropInfo?.isOwner && (
           <div className="drop-meta">
             {typeof unlockCount === 'number' && <span className="badge">unlocks: {unlockCount}</span>}
             {ownerPasscode && <span className="badge">passcode: {ownerPasscode}</span>}
@@ -196,6 +206,9 @@ const DropDetail: React.FC = () => {
                   className="viewer-video"
                 />
               )}
+            </div>
+            <div className="viewer-actions">
+              <button className="button" onClick={handleDownload}>download</button>
             </div>
           </div>
         </div>
