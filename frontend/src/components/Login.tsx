@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { API_BASE } from '../api';
 
 interface LoginProps {
   onLogin: (user: any, token: string) => void;
@@ -7,7 +8,7 @@ interface LoginProps {
 }
 
 const Login: React.FC<LoginProps> = ({ onLogin, onSwitchToSignup }) => {
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneOrUsername, setPhoneOrUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -18,8 +19,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, onSwitchToSignup }) => {
     setError('');
 
     try {
-      const response = await axios.post('http://localhost:4000/users/login', {
-        phoneNumber,
+      const response = await axios.post(`${API_BASE}/users/login`, {
+        phoneNumber: phoneOrUsername,
         password
       });
 
@@ -34,14 +35,14 @@ const Login: React.FC<LoginProps> = ({ onLogin, onSwitchToSignup }) => {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <h2>login to the vault</h2>
+        <h2>login to [the vault.]</h2>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <input
               type="tel"
-              placeholder="phone number"
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
+              placeholder="phone number or username"
+              value={phoneOrUsername}
+              onChange={(e) => setPhoneOrUsername(e.target.value)}
               required
             />
           </div>

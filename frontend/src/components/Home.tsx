@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Folder, Lock, Unlock } from 'lucide-react';
+import DropCard from './DropCard';
 import axios from 'axios';
+import { API_BASE } from '../api';
 
 interface Drop {
   id: string;
@@ -12,43 +13,46 @@ interface Drop {
   isOwner: boolean;
 }
 
-const Home: React.FC = () => {
+interface HomeProps {
+  isAuthenticated: boolean;
+}
+
+const Home: React.FC<HomeProps> = ({ isAuthenticated }) => {
   const [drops, setDrops] = useState<Drop[]>([]);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
-    axios.get('http://localhost:4000/drops')
+    axios.get(`${API_BASE}/drops`)
       .then(response => setDrops(response.data))
       .catch(error => console.error('Error fetching drops:', error));
   }, []);
 
+  const handleCopyLink = (dropId: string) => {
+    const origin = window.location.origin;
+    const url = `${origin}/drop/${dropId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedId(dropId);
+      setTimeout(() => setCopiedId(null), 1200);
+    }).catch(() => {
+      alert('unable to copy link');
+    });
+  };
+
   return (
     <div className="home">
-      <div className="home-actions">
-        <Link to="/create" className="button create-button cta">create new drop</Link>
-      </div>
+      {isAuthenticated && (
+        <div className="home-actions">
+          <Link to="/create" className="button create-button cta">create new drop</Link>
+        </div>
+      )}
       <div className="drops-grid">
         {drops.map(drop => (
-          <Link key={drop.id} to={`/drop/${drop.dropId}`} className="folder-link">
-            <div className="folder-card">
-              <div className="folder-header">
-                {drop.isPublic ? (
-                  <Unlock size={16} className="visibility-icon public" />
-                ) : (
-                  <Lock size={16} className="visibility-icon private" />
-                )}
-                {drop.isOwner && (
-                  <span className="owner-badge">mine</span>
-                )}
-              </div>
-              <div className="folder-body">
-                <Folder size={48} className="folder-icon" />
-                <div>
-                  <h3>{drop.title}</h3>
-                  <div className="meta">{new Date(drop.createdAt).toLocaleDateString()}</div>
-                </div>
-              </div>
-            </div>
-          </Link>
+          <DropCard
+            key={drop.id}
+            drop={drop}
+            onCopyLink={handleCopyLink}
+            copied={copiedId === drop.dropId}
+          />
         ))}
       </div>
       {drops.length === 0 && (

@@ -1,6 +1,8 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import multer from "multer";
+import path from "path";
+import { Readable } from "stream";
 import { db } from "../config/db.js";
 import { getSignedMediaUrl, listDropMedia } from "../services/s3Service.js";
 import { validateDropPasscode } from "../services/dropService.js";
@@ -250,7 +252,18 @@ router.get("/:dropId/media/:mediaId/download", optionalAuth, async (req, res) =>
     }
 
     const signed = await getSignedMediaUrl(media.s3_key);
-    return res.redirect(signed);
+    const fileName = path.basename(media.s3_key);
+
+    const upstream = await fetch(signed);
+    if (!upstream.ok || !upstream.body) {
+      return res.status(502).json({ error: "FAILED_TO_FETCH_MEDIA" });
+    }
+
+    res.setHeader("Content-Type", upstream.headers.get("content-type") || "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+
+    const nodeStream = Readable.fromWeb(upstream.body);
+    nodeStream.pipe(res);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "FAILED_TO_DOWNLOAD_MEDIA" });

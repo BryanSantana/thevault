@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import axios from 'axios';
 import Home from './components/Home';
@@ -19,9 +20,9 @@ interface User {
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [loading, setLoading] = useState(true);
+  const [showAuth, setShowAuth] = useState(false);
 
   useEffect(() => {
     // Check for stored token on app load
@@ -29,7 +30,6 @@ function App() {
     const storedUser = localStorage.getItem('user');
 
     if (storedToken && storedUser) {
-      setToken(storedToken);
       setUser(JSON.parse(storedUser));
       axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
     }
@@ -39,7 +39,6 @@ function App() {
 
   const handleLogin = (userData: User, authToken: string) => {
     setUser(userData);
-    setToken(authToken);
     localStorage.setItem('authToken', authToken);
     localStorage.setItem('user', JSON.stringify(userData));
     axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
@@ -47,7 +46,6 @@ function App() {
 
   const handleSignup = (userData: User, authToken: string) => {
     setUser(userData);
-    setToken(authToken);
     localStorage.setItem('authToken', authToken);
     localStorage.setItem('user', JSON.stringify(userData));
     axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
@@ -55,7 +53,6 @@ function App() {
 
   const handleLogout = () => {
     setUser(null);
-    setToken(null);
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
     delete axios.defaults.headers.common['Authorization'];
@@ -69,7 +66,7 @@ function App() {
     <Router>
       <div className="app">
         <header className="header-bar full-width">
-          <h1 className="vault-title">the vault</h1>
+          <h1 className="vault-title">[the vault.]</h1>
             <div className="user-info">
             {user?.profilePictureUrl && (
               <img src={user.profilePictureUrl} alt="Profile" className="profile-pic" />
@@ -82,22 +79,38 @@ function App() {
               </>
             ) : (
               <div className="auth-actions">
-                <button onClick={() => setAuthMode('login')} className="button logout-button">login</button>
-                <button onClick={() => setAuthMode('signup')} className="button logout-button">sign up</button>
+                <button onClick={() => { setAuthMode('login'); setShowAuth(true); }} className="button logout-button">login</button>
+                <button onClick={() => { setAuthMode('signup'); setShowAuth(true); }} className="button logout-button">sign up</button>
               </div>
             )}
           </div>
         </header>
         <main className="main-full">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/create" element={<CreateDrop />} />
-            <Route path="/drop/:dropId" element={<DropDetail />} />
-            <Route path="/profile/:id" element={<Profile />} />
-            <Route path="/profiles/:id" element={<Profile />} />
-            <Route path="*" element={<Home />} />
-          </Routes>
-        </main>
+          {!user && showAuth && (
+            <div className="auth-flyout">
+              <button className="button close-auth" onClick={() => setShowAuth(false)}>close</button>
+              {authMode === 'login' ? (
+                <Login
+                  onLogin={(u, t) => { handleLogin(u, t); setShowAuth(false); }}
+                  onSwitchToSignup={() => setAuthMode('signup')}
+                />
+              ) : (
+                <Signup
+                  onSignup={(u, t) => { handleSignup(u, t); setShowAuth(false); }}
+                  onSwitchToLogin={() => setAuthMode('login')}
+                />
+              )}
+            </div>
+          )}
+            <Routes>
+              <Route path="/" element={<Home isAuthenticated={!!user} />} />
+              <Route path="/create" element={<CreateDrop />} />
+              <Route path="/drop/:dropId" element={<DropDetail />} />
+              <Route path="/profile/:id" element={<Profile />} />
+              <Route path="/profiles/:id" element={<Profile />} />
+              <Route path="*" element={<Home isAuthenticated={!!user} />} />
+            </Routes>
+          </main>
       </div>
     </Router>
   );

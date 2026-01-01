@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { API_BASE } from '../api';
 
 interface SignupProps {
   onSignup: (user: any, token: string) => void;
@@ -8,9 +9,9 @@ interface SignupProps {
 
 const Signup: React.FC<SignupProps> = ({ onSignup, onSwitchToLogin }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
   const [username, setUsername] = useState('');
+  const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -20,11 +21,11 @@ const Signup: React.FC<SignupProps> = ({ onSignup, onSwitchToLogin }) => {
     setError('');
 
     try {
-      const response = await axios.post('http://localhost:4000/users/signup', {
+      const response = await axios.post(`${API_BASE}/users/signup`, {
         phoneNumber,
-        password,
         name: name.trim() || null,
         username: username.trim(),
+        password,
       });
 
       onSignup(response.data.user, response.data.token);
@@ -38,7 +39,7 @@ const Signup: React.FC<SignupProps> = ({ onSignup, onSwitchToLogin }) => {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <h2>join the vault</h2>
+        <h2>join [the vault.]</h2>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <input
@@ -47,16 +48,6 @@ const Signup: React.FC<SignupProps> = ({ onSignup, onSwitchToLogin }) => {
               value={phoneNumber}
               onChange={(e) => setPhoneNumber(e.target.value)}
               required
-            />
-          </div>
-          <div className="form-group">
-            <input
-              type="password"
-              placeholder="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
             />
           </div>
           <div className="form-group">
@@ -74,6 +65,16 @@ const Signup: React.FC<SignupProps> = ({ onSignup, onSwitchToLogin }) => {
               placeholder="display name (optional)"
               value={name}
               onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+          <div className="form-group">
+            <input
+              type="password"
+              placeholder="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
             />
           </div>
           {error && <div className="error-message">{error}</div>}

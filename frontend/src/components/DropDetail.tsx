@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, X, ArrowLeft } from 'lucide-react';
 import axios from 'axios';
+import { API_BASE } from '../api';
 
 interface Media {
   id: string;
@@ -21,10 +22,11 @@ const DropDetail: React.FC = () => {
   const [ownerPasscode, setOwnerPasscode] = useState<string | null>(null);
   const [dropInfo, setDropInfo] = useState<{ title: string; isLive: boolean; isPublic?: boolean; isOwner?: boolean } | null>(null);
   const [selectedMediaIndex, setSelectedMediaIndex] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     // Fetch drop info
-    axios.get(`http://localhost:4000/drops/${dropId}`)
+    axios.get(`${API_BASE}/drops/${dropId}`)
       .then(response => setDropInfo(response.data))
       .catch(error => console.error('Error fetching drop info:', error));
   }, [dropId]);
@@ -65,7 +67,7 @@ const DropDetail: React.FC = () => {
 
   const handleUnlock = async () => {
     try {
-      const response = await axios.post(`http://localhost:4000/drops/${dropId}/unlock`, { passcode });
+      const response = await axios.post(`${API_BASE}/drops/${dropId}/unlock`, { passcode });
       setMedia(response.data.media);
       setUnlocked(true);
       if (typeof response.data.unlockCount === 'number' && dropInfo?.isOwner) {
@@ -84,14 +86,14 @@ const DropDetail: React.FC = () => {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      await axios.post(`http://localhost:4000/drops/${dropId}/media`, formData, {
+      await axios.post(`${API_BASE}/drops/${dropId}/media`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       alert('media uploaded');
       setFile(null);
       // Refresh media
       if (unlocked) {
-        const response = await axios.post(`http://localhost:4000/drops/${dropId}/unlock`, { passcode });
+        const response = await axios.post(`${API_BASE}/drops/${dropId}/unlock`, { passcode });
         setMedia(response.data.media);
       }
     } catch (error) {
@@ -107,14 +109,40 @@ const DropDetail: React.FC = () => {
     setSelectedMediaIndex(null);
   };
 
+  const handleCopyLink = () => {
+    const origin = window.location.origin;
+    const url = `${origin}/drop/${dropId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    }).catch(() => {
+      alert('unable to copy link');
+    });
+  };
+
   const handleDownload = async () => {
     if (selectedMediaIndex === null) return;
     const current = media[selectedMediaIndex];
     if (!current) return;
 
-    const passcodeParam = dropInfo?.isOwner || dropInfo?.isPublic ? '' : passcode ? `?passcode=${encodeURIComponent(passcode)}` : '';
-    const downloadUrl = `http://localhost:4000/drops/${dropId}/media/${current.id}/download${passcodeParam}`;
-    window.location.href = downloadUrl;
+    try {
+      const response = await axios.get(`${API_BASE}/drops/${dropId}/media/${current.id}/download`, {
+        responseType: 'blob',
+        params: dropInfo?.isOwner || dropInfo?.isPublic ? {} : passcode ? { passcode } : {}
+      });
+      const blobUrl = window.URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      const ext = current.type === 'video' ? 'mp4' : 'jpg';
+      link.href = blobUrl;
+      link.download = `drop-${dropId}-${current.position}.${ext}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('download failed', err);
+      alert('download failed');
+    }
   };
 
   const navigateMedia = (direction: number) => {
@@ -133,6 +161,13 @@ const DropDetail: React.FC = () => {
           back
         </button>
         <h2>{dropInfo?.title || 'loading...'}</h2>
+        {dropInfo?.isOwner && (
+          <div className="drop-meta">
+            <button className="button copy-link" onClick={handleCopyLink}>
+              {copied ? 'copied' : 'copy link'}
+            </button>
+          </div>
+        )}
         {unlocked && dropInfo?.isOwner && (
           <div className="drop-meta">
             {typeof unlockCount === 'number' && <span className="badge">unlocks: {unlockCount}</span>}
@@ -164,10 +199,12 @@ const DropDetail: React.FC = () => {
             ))}
           </div>
 
-          <div className="upload">
-            <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-            <button onClick={handleUpload} className="button">upload</button>
-          </div>
+          {dropInfo?.isOwner && (
+            <div className="upload">
+              <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+              <button onClick={handleUpload} className="button">upload</button>
+            </div>
+          )}
         </div>
       )}
 

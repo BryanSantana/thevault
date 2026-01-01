@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Folder } from 'lucide-react';
 import axios from 'axios';
+import { API_BASE } from '../api';
 
 interface Drop {
   id: string;
@@ -32,7 +33,7 @@ const Profile: React.FC = () => {
   useEffect(() => {
     if (!id) return;
     setLoading(true);
-    axios.get(`http://localhost:4000/users/profile/${id}`)
+    axios.get(`${API_BASE}/users/profile/${id}`)
       .then((res) => {
         setUser(res.data.user);
         setDrops(res.data.drops);
@@ -58,7 +59,7 @@ const Profile: React.FC = () => {
     try {
       const formData = new FormData();
       formData.append('profilePicture', selectedFile);
-      const res = await axios.post('http://localhost:4000/users/profile-picture', formData, {
+      const res = await axios.post(`${API_BASE}/users/profile-picture`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       const newUrl = res.data.profilePictureUrl;

@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload, X, Lock, Unlock } from 'lucide-react';
 import axios from 'axios';
+import { API_BASE } from '../api';
 
 const CreateDrop: React.FC = () => {
   const [title, setTitle] = useState('');
@@ -10,7 +11,6 @@ const CreateDrop: React.FC = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [generatedDropId, setGeneratedDropId] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
@@ -56,7 +56,7 @@ const CreateDrop: React.FC = () => {
     formData.append('file', file);
 
     const response = await axios.post(
-      `http://localhost:4000/drops/${dropId}/media`,
+      `${API_BASE}/drops/${dropId}/media`,
       formData,
       { headers: { 'Content-Type': 'multipart/form-data' } }
     );
@@ -81,14 +81,13 @@ const CreateDrop: React.FC = () => {
 
     try {
       // Create the drop
-      const dropResponse = await axios.post('http://localhost:4000/drops', {
+      const dropResponse = await axios.post(`${API_BASE}/drops`, {
         title,
         passcode: isPublic ? '' : passcode,
         isPublic
       });
 
       const createdDropId = dropResponse.data.dropId;
-      setGeneratedDropId(createdDropId);
 
       // Upload all media files
       if (files.length > 0) {

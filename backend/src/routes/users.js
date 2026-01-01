@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import multer from 'multer';
 import { db as pool } from '../config/db.js';
 import { authenticateToken, optionalAuth, JWT_SECRET } from '../middleware/auth.js';
-import { uploadMediaToS3 } from '../services/s3Service.js';
+import { uploadMediaToS3, getSignedMediaUrl } from '../services/s3Service.js';
 import { findUserById, findUserWithDrops } from '../repositories/userRepo.js';
 
 const router = express.Router();
@@ -12,6 +12,16 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB max
 });
+
+async function resolveProfilePicture(value) {
+  if (!value) return null;
+  if (value.startsWith('http')) return value;
+  try {
+    return await getSignedMediaUrl(value);
+  } catch {
+    return null;
+  }
+}
 
 // Signup with phone number
 router.post('/signup', async (req, res) => {
@@ -61,19 +71,22 @@ router.post('/signup', async (req, res) => {
   }
 });
 
-// Login with phone number
+// Login with phone number or username
 router.post('/login', async (req, res) => {
   try {
     const { phoneNumber, password } = req.body;
 
     if (!phoneNumber || !password) {
-      return res.status(400).json({ error: 'Phone number and password are required' });
+      return res.status(400).json({ error: 'phone/username and password are required' });
     }
 
     // Find user
-    const result = await pool.query('SELECT * FROM users WHERE phone_number = $1', [phoneNumber]);
+    const result = await pool.query(
+      'SELECT * FROM users WHERE phone_number = $1 OR username = $1',
+      [phoneNumber]
+    );
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Invalid phone number or password' });
+      return res.status(401).json({ error: 'invalid credentials' });
     }
 
     const user = result.rows[0];
@@ -81,7 +94,7 @@ router.post('/login', async (req, res) => {
     // Check password
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
     if (!isValidPassword) {
-      return res.status(401).json({ error: 'Invalid phone number or password' });
+      return res.status(401).json({ error: 'invalid credentials' });
     }
 
     // Generate JWT token
@@ -106,13 +119,14 @@ router.post('/login', async (req, res) => {
 // Get current user profile
 router.get('/profile', authenticateToken, async (req, res) => {
   try {
+    const pic = await resolveProfilePicture(req.user.profile_picture_url);
     res.json({
       user: {
         id: req.user.id,
         phoneNumber: req.user.phone_number,
         name: req.user.name,
         username: req.user.username,
-        profilePictureUrl: req.user.profile_picture_url
+        profilePictureUrl: pic
       }
     });
   } catch (error) {
@@ -150,7 +164,7 @@ router.put('/profile', authenticateToken, async (req, res) => {
         phoneNumber: user.phone_number,
         name: user.name,
         username: user.username,
-        profilePictureUrl: user.profile_picture_url
+        profilePictureUrl: await resolveProfilePicture(user.profile_picture_url)
       }
     });
   } catch (error) {
@@ -175,20 +189,14 @@ router.post('/profile-picture', authenticateToken, upload.single('profilePicture
 
     const key = `profile-pictures/${userId}/${Date.now()}-${file.originalname}`;
     const storedKey = await uploadMediaToS3(key, file.buffer, file.mimetype);
-
-    const region = process.env.AWS_REGION;
-    const bucket = process.env.S3_BUCKET;
-    const baseUrl = process.env.MEDIA_BASE_URL || (bucket && region
-      ? `https://${bucket}.s3.${region}.amazonaws.com`
-      : `https://s3.${region}.amazonaws.com/${bucket}`);
-    const imageUrl = `${baseUrl}/${storedKey}`;
+    const signed = await getSignedMediaUrl(storedKey);
 
     const result = await pool.query(
       'UPDATE users SET profile_picture_url = $1 WHERE id = $2 RETURNING profile_picture_url',
-      [imageUrl, userId]
+      [storedKey, userId]
     );
 
-    res.json({ profilePictureUrl: result.rows[0].profile_picture_url });
+    res.json({ profilePictureUrl: signed });
   } catch (error) {
     console.error('Profile picture upload error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -212,7 +220,7 @@ router.get('/profile/:id', optionalAuth, async (req, res) => {
         phoneNumber: isOwner ? data.user.phone_number : undefined,
         name: data.user.name,
         username: data.user.username,
-        profilePictureUrl: data.user.profile_picture_url,
+        profilePictureUrl: await resolveProfilePicture(data.user.profile_picture_url),
         isOwner
       },
       drops: data.drops.map(d => ({

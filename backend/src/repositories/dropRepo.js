@@ -7,6 +7,10 @@ export async function ensureDropAuxColumns() {
     ADD COLUMN IF NOT EXISTS unlock_count INTEGER DEFAULT 0,
     ADD COLUMN IF NOT EXISTS passcode_plain TEXT;
   `);
+  await db.query(`
+    ALTER TABLE drops
+    ALTER COLUMN passcode_hash DROP NOT NULL;
+  `);
 }
 
 export async function findDropByDropId(dropId) {
