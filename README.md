@@ -93,3 +93,9 @@ backend production build uses a docker image (see `backend/Dockerfile`).
 ### frontend
 - `VITE_API_BASE` api base url
 
+### where we're working
+- we are working at the following jira board: https://bsant.atlassian.net/jira/software/projects/SCRUM/boards/1
+
+### where we're going
+- we are using this document to write down ideas for future implementation: https://docs.google.com/document/d/1486H-gHm2YtUApjbx1whrl910H-dEyE58kLpirFf9IU/edit?tab=t.0
+
