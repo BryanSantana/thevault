@@ -1,4 +1,4 @@
-import { ListObjectsV2Command, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { ListObjectsV2Command, GetObjectCommand, PutObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import fs from "fs/promises";
 import path from "path";
@@ -88,4 +88,38 @@ export async function getSignedMediaUrl(key) {
   return getSignedUrl(s3, command, {
     expiresIn: 60 * 10 // 10 minutes
   });
+}
+
+export async function deleteDropMedia(dropId) {
+  if (useLocalStorage()) {
+    const prefixDir = path.join(uploadsRoot, `drops/${dropId}`);
+    await fs.rm(prefixDir, { recursive: true, force: true });
+    return;
+  }
+
+  const bucket = getBucket();
+  let continuationToken = undefined;
+
+  do {
+    const listCommand = new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: `drops/${dropId}/`,
+      ContinuationToken: continuationToken
+    });
+
+    const response = await s3.send(listCommand);
+    const objects = (response.Contents || [])
+      .filter(obj => obj.Key && !obj.Key.endsWith("/"))
+      .map(obj => ({ Key: obj.Key }));
+
+    if (objects.length) {
+      const deleteCommand = new DeleteObjectsCommand({
+        Bucket: bucket,
+        Delete: { Objects: objects }
+      });
+      await s3.send(deleteCommand);
+    }
+
+    continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
+  } while (continuationToken);
 }

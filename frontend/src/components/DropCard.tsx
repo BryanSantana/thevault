@@ -14,9 +14,11 @@ interface DropCardProps {
   drop: Drop;
   onCopyLink: (dropId: string) => void;
   copied: boolean;
+  onDelete: (dropId: string) => void;
+  deleting: boolean;
 }
 
-const DropCard: React.FC<DropCardProps> = ({ drop, onCopyLink, copied }) => {
+const DropCard: React.FC<DropCardProps> = ({ drop, onCopyLink, copied, onDelete, deleting }) => {
   return (
     <Link to={`/drop/${drop.dropId}`} className="folder-link">
       <div className="drop-card">
@@ -29,16 +31,29 @@ const DropCard: React.FC<DropCardProps> = ({ drop, onCopyLink, copied }) => {
         </div>
         <div className="brace-date">{new Date(drop.createdAt).toLocaleDateString()}</div>
         {drop.isOwner && (
-          <button
-            className="button copy-link"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onCopyLink(drop.dropId);
-            }}
-          >
-            {copied ? 'copied' : 'copy link'}
-          </button>
+          <div className="drop-card-actions">
+            <button
+              className="button copy-link"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onCopyLink(drop.dropId);
+              }}
+            >
+              {copied ? 'copied' : 'copy link'}
+            </button>
+            <button
+              className="button delete-link"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onDelete(drop.dropId);
+              }}
+              disabled={deleting}
+            >
+              {deleting ? 'deleting' : 'delete'}
+            </button>
+          </div>
         )}
       </div>
     </Link>

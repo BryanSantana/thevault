@@ -50,3 +50,13 @@ export async function incrementUnlockCount(dropId) {
   );
   return result.rows[0]?.unlock_count ?? 0;
 }
+
+export async function deleteDropById(dropUuid) {
+  await db.query(
+    `
+    DELETE FROM drops
+    WHERE id = $1
+    `,
+    [dropUuid]
+  );
+}

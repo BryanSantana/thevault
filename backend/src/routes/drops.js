@@ -4,10 +4,10 @@ import multer from "multer";
 import path from "path";
 import { Readable } from "stream";
 import { db } from "../config/db.js";
-import { getSignedMediaUrl, listDropMedia } from "../services/s3Service.js";
+import { getSignedMediaUrl, deleteDropMedia } from "../services/s3Service.js";
 import { validateDropPasscode } from "../services/dropService.js";
-import { getMediaForDrop, findMediaById } from "../repositories/mediaRepo.js";
-import { findDropByDropId, createDrop, incrementUnlockCount } from "../repositories/dropRepo.js";
+import { getMediaForDrop, findMediaById, deleteMediaForDrop } from "../repositories/mediaRepo.js";
+import { findDropByDropId, createDrop, incrementUnlockCount, deleteDropById } from "../repositories/dropRepo.js";
 import { createAndUploadMedia } from "../services/mediaService.js";
 import { authenticateToken, optionalAuth } from "../middleware/auth.js";
 const router = express.Router();
@@ -140,6 +140,34 @@ router.post("/:dropId/media", authenticateToken, upload.single("file"), async (r
       return res.status(404).json({ error: "DROP_NOT_FOUND" });
     }
     res.status(500).json({ error: "FAILED_TO_UPLOAD_MEDIA" });
+  }
+});
+
+/**
+ * DELETE /drops/:dropId
+ * Delete a drop and its media (owner only)
+ */
+router.delete("/:dropId", authenticateToken, async (req, res) => {
+  try {
+    const { dropId } = req.params;
+    const drop = await findDropByDropId(dropId);
+
+    if (!drop) {
+      return res.status(404).json({ error: "DROP_NOT_FOUND" });
+    }
+
+    if (drop.user_id !== req.user.id) {
+      return res.status(403).json({ error: "FORBIDDEN" });
+    }
+
+    await deleteDropMedia(dropId);
+    await deleteMediaForDrop(drop.id);
+    await deleteDropById(drop.id);
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "FAILED_TO_DELETE_DROP" });
   }
 });
 

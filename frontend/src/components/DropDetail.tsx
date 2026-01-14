@@ -32,11 +32,12 @@ const DropDetail: React.FC = () => {
   }, [dropId]);
 
   useEffect(() => {
-    if (dropInfo?.isOwner && !unlocked) {
+    if (!dropInfo || unlocked) return;
+    if (dropInfo.isOwner || dropInfo.isPublic) {
       handleUnlock();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dropInfo]);
+  }, [dropInfo, unlocked]);
 
   useEffect(() => {
     // Keyboard navigation
@@ -156,7 +157,7 @@ const DropDetail: React.FC = () => {
   return (
     <div className="drop-detail">
       <div className="drop-header">
-        <button className="button back-button" onClick={() => navigate(-1)}>
+        <button className="button back-button" onClick={() => navigate('/profile/1')}>
           <ArrowLeft size={16} />
           back
         </button>
@@ -176,15 +177,21 @@ const DropDetail: React.FC = () => {
         )}
       </div>
       {!unlocked ? (
-        <div className="unlock-section">
-          <input
-            type="password"
-            placeholder="enter passcode"
-            value={passcode}
-            onChange={(e) => setPasscode(e.target.value)}
-          />
-          <button onClick={handleUnlock} className="button">unlock</button>
-        </div>
+        dropInfo?.isPublic ? (
+          <div className="unlock-section">
+            <span>loading drop...</span>
+          </div>
+        ) : (
+          <div className="unlock-section">
+            <input
+              type="password"
+              placeholder="enter passcode"
+              value={passcode}
+              onChange={(e) => setPasscode(e.target.value)}
+            />
+            <button onClick={handleUnlock} className="button">gain access</button>
+          </div>
+        )
       ) : (
         <div className="media-section">
           <div className="media-grid">

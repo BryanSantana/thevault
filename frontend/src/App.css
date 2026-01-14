@@ -40,7 +40,7 @@ body {
   padding: 32px 0 16px;
 }
 
-.shell { max-width: 1200px; margin: 0 auto; }
+.shell { max-width: 1200px; margin: 0 auto; width: 100%; }
 
 .panel { display: contents; }
 
@@ -131,7 +131,7 @@ body {
 
 .drops-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: clamp(12px, 2vw, 22px);
   width: 100%;
 }
@@ -552,10 +552,52 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
   padding: 8px 10px;
 }
 
+.drop-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.delete-link {
+  border-color: rgba(255, 120, 120, 0.4);
+  color: #ffb3b3;
+}
+
+.delete-link:hover {
+  border-color: rgba(255, 120, 120, 0.8);
+  box-shadow: 0 0 0 1px rgba(255, 120, 120, 0.6), 0 10px 25px rgba(0, 0, 0, 0.35);
+}
+
 @media (max-width: 900px) {
-  .header-bar { flex-direction: column; gap: 12px; align-items: flex-start; }
+  .header-bar { flex-direction: column; gap: 12px; align-items: flex-start; padding-inline: 0; }
+  .user-info { width: 100%; justify-content: space-between; }
   .home { padding: 0; }
-  .drops-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .drops-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  .drop-card { padding: 14px 12px; }
+  .brace { font-size: 32px; }
+  .brace-title { font-size: 16px; }
+  .app { padding: 12px 12px 24px; }
+  .profile-header { flex-direction: column; align-items: flex-start; }
+}
+
+@media (max-width: 600px) {
+  .shell { padding: 0 4px; }
+  .header { padding: 20px 0 10px; }
+  .header-bar { align-items: center; }
+  .vault-title { text-align: center; width: 100%; }
+  .cta { width: 100%; }
+  .drops-grid { gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .drop-card { border-radius: 12px; }
+  .main-full { padding: 0; }
+  .profile-header { align-items: center; text-align: center; width: 100%; }
+  .profile-meta { display: flex; flex-direction: column; align-items: center; }
+}
+
+@media (max-width: 420px) {
+  .drops-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .drop-card { padding: 12px 10px; }
+  .brace { font-size: 28px; }
+  .brace-title { font-size: 14px; }
 }
 
 @media (max-width: 768px) {

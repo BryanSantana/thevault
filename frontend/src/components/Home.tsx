@@ -20,6 +20,7 @@ interface HomeProps {
 const Home: React.FC<HomeProps> = ({ isAuthenticated }) => {
   const [drops, setDrops] = useState<Drop[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     axios.get(`${API_BASE}/drops`)
@@ -38,6 +39,21 @@ const Home: React.FC<HomeProps> = ({ isAuthenticated }) => {
     });
   };
 
+  const handleDelete = async (dropId: string) => {
+    const confirmed = window.confirm('delete this drop and all of its media?');
+    if (!confirmed) return;
+    setDeletingId(dropId);
+    try {
+      await axios.delete(`${API_BASE}/drops/${dropId}`);
+      setDrops((prev) => prev.filter((d) => d.dropId !== dropId));
+    } catch (error) {
+      console.error('Error deleting drop:', error);
+      alert('unable to delete drop');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="home">
       {isAuthenticated && (
@@ -52,6 +68,8 @@ const Home: React.FC<HomeProps> = ({ isAuthenticated }) => {
             drop={drop}
             onCopyLink={handleCopyLink}
             copied={copiedId === drop.dropId}
+            onDelete={handleDelete}
+            deleting={deletingId === drop.dropId}
           />
         ))}
       </div>

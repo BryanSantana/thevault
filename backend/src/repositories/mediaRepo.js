@@ -25,6 +25,16 @@ export async function createMedia(dropUuid, s3Key, mediaType, position) {
   return result.rows[0];
 }
 
+export async function deleteMediaForDrop(dropUuid) {
+  await db.query(
+    `
+    DELETE FROM media
+    WHERE drop_id = $1
+    `,
+    [dropUuid]
+  );
+}
+
 export async function getNextPosition(dropUuid) {
   const result = await db.query(
     `

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Folder } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE } from '../api';
+import DropCard from './DropCard';
 
 interface Drop {
   id: string;
@@ -29,6 +29,8 @@ const Profile: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -78,6 +80,32 @@ const Profile: React.FC = () => {
     }
   };
 
+  const handleCopyLink = (dropId: string) => {
+    const origin = window.location.origin;
+    const url = `${origin}/drop/${dropId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedId(dropId);
+      setTimeout(() => setCopiedId(null), 1200);
+    }).catch(() => {
+      alert('unable to copy link');
+    });
+  };
+
+  const handleDelete = async (dropId: string) => {
+    const confirmed = window.confirm('delete this drop and all of its media?');
+    if (!confirmed) return;
+    setDeletingId(dropId);
+    try {
+      await axios.delete(`${API_BASE}/drops/${dropId}`);
+      setDrops((prev) => prev.filter((d) => d.dropId !== dropId));
+    } catch (err) {
+      console.error('error deleting drop', err);
+      alert('unable to delete drop');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="home profile-page">
       <div className="profile-header">
@@ -116,22 +144,15 @@ const Profile: React.FC = () => {
       </div>
 
       <div className="drops-grid">
-        {drops.map(drop => (
-          <Link key={drop.id} to={`/drop/${drop.dropId}`} className="folder-link">
-            <div className="folder-card">
-              <div className="folder-header">
-                {drop.isPublic ? 'public' : 'private'}
-                {drop.isOwner && <span className="owner-badge">mine</span>}
-              </div>
-              <div className="folder-body">
-                <Folder size={48} className="folder-icon" />
-                <div>
-                  <h3>{drop.title}</h3>
-                  <div className="meta">{new Date(drop.createdAt).toLocaleDateString()}</div>
-                </div>
-              </div>
-            </div>
-          </Link>
+        {drops.map((drop) => (
+          <DropCard
+            key={drop.id}
+            drop={{ ...drop, isOwner: !!drop.isOwner }}
+            onCopyLink={handleCopyLink}
+            copied={copiedId === drop.dropId}
+            onDelete={handleDelete}
+            deleting={deletingId === drop.dropId}
+          />
         ))}
       </div>
       {drops.length === 0 && (
