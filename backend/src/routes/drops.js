@@ -7,9 +7,10 @@ import { db } from "../config/db.js";
 import { getSignedMediaUrl, deleteDropMedia } from "../services/s3Service.js";
 import { validateDropPasscode } from "../services/dropService.js";
 import { getMediaForDrop, findMediaById, deleteMediaForDrop } from "../repositories/mediaRepo.js";
-import { findDropByDropId, createDrop, incrementUnlockCount, deleteDropById } from "../repositories/dropRepo.js";
+import { findDropByDropId, createDrop, incrementUnlockCount, deleteDropById, updateDropByDropId } from "../repositories/dropRepo.js";
 import { createAndUploadMedia } from "../services/mediaService.js";
 import { authenticateToken, optionalAuth } from "../middleware/auth.js";
+import z from "zod";
 const router = express.Router();
 
 // Generate a unique drop ID (6 characters, alphanumeric)
@@ -108,6 +109,40 @@ router.post("/", authenticateToken, async (req, res) => {
       return res.status(409).json({ error: "DROP_ID_EXISTS" });
     }
     res.status(500).json({ error: "FAILED_TO_CREATE_DROP" });
+  }
+});
+
+router.patch("/:dropId", optionalAuth, async (req, res) => {
+  const formSchema = z.object({
+    title: z.string().optional()
+  });
+  try {
+    const parseResult = formSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        error: z.prettifyError(parseResult.error)
+      });
+    }
+    const {title} = parseResult.data;
+    if (title.length < 1) // just return immediately we don't even need to hit pg
+      return res.status(204);
+    const {dropId} = req.params;
+    const numUpdated = await updateDropByDropId(dropId);
+    if (numUpdated === 0) {
+      return res.status(404).json({
+        error: `Drop ${dropId} doesn't exist lol`
+      });
+    }
+
+    // just return new fields for now
+    return res.status(200).json({
+      title
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
+      error: "FAILED_TO_UPDATE_DROP"
+    });
   }
 });
 

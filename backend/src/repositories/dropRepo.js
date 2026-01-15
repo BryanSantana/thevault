@@ -60,3 +60,20 @@ export async function deleteDropById(dropUuid) {
     [dropUuid]
   );
 }
+
+/**
+ * Update drop row with DROP_ID with new fields TITLE
+ *
+ * ...
+ *
+ * @param {string} dropId aws
+ * @param {string} title
+ * @returns {Promise<number>} 1 if drop row with DROP_ID exists, 0 otherwise
+ */
+export async function updateDropByDropId(dropId) {
+  return db.query(
+    `UPDATE drops SET title = $1 WHERE drop_id = $2`,
+    [dropId]
+  )
+  .then(result => result.rowCount ?? 0);
+}
