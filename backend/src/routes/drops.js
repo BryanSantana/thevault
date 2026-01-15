@@ -114,8 +114,10 @@ router.post("/", authenticateToken, async (req, res) => {
 
 router.patch("/:dropId", optionalAuth, async (req, res) => {
   const formSchema = z.object({
-    title: z.string().optional()
-  });
+    title: z.string(),
+    passcodeHash: z.string(),
+    isPublic: z.boolean()
+  }).partial();
   try {
     const parseResult = formSchema.safeParse(req.body);
     if (!parseResult.success) {
@@ -123,11 +125,9 @@ router.patch("/:dropId", optionalAuth, async (req, res) => {
         error: z.prettifyError(parseResult.error)
       });
     }
-    const {title} = parseResult.data;
-    if (title.length < 1) // just return immediately we don't even need to hit pg
-      return res.status(204);
+    const newValues = parseResult.data;
     const {dropId} = req.params;
-    const numUpdated = await updateDropByDropId(dropId);
+    const numUpdated = await updateDropByDropId(dropId, newValues);
     if (numUpdated === 0) {
       return res.status(404).json({
         error: `Drop ${dropId} doesn't exist lol`

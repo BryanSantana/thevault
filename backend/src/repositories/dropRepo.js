@@ -62,18 +62,30 @@ export async function deleteDropById(dropUuid) {
 }
 
 /**
- * Update drop row with DROP_ID with new fields TITLE
+ * Update drop row with DROP_ID with new column values 
+ * TITLE, PASSCODE_HASH, IS_PUBLIC
  *
  * ...
  *
- * @param {string} dropId aws
- * @param {string} title
+ * @param {string} dropId
+ * @param {Partial<{
+ *   title: string;
+ *   passcodeHash: string;
+ *   isPublic: boolean;
+ * }>} values
  * @returns {Promise<number>} 1 if drop row with DROP_ID exists, 0 otherwise
  */
-export async function updateDropByDropId(dropId) {
+export async function updateDropByDropId(dropId, {title, passcodeHash, isPublic}) {
+  const sql = 
+    `update drops
+     set 
+       title = $2,
+       passcode_hash = $3,
+       is_public = $4
+     where drop_id = $1`
   return db.query(
-    `UPDATE drops SET title = $1 WHERE drop_id = $2`,
-    [dropId]
+    sql,
+    [dropId, title, passcodeHash, isPublic]
   )
   .then(result => result.rowCount ?? 0);
 }
